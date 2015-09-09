@@ -52,7 +52,9 @@ func main() {
 	if *prefix != "/" {
 		*prefix = *prefix + "/"
 	}
-	http.HandleFunc(*prefix, imgurHandler)
+
+	http.HandleFunc(*prefix+"gallery/", galleryHandler)
+	http.HandleFunc(*prefix, imgHandler)
 	if err := http.ListenAndServe(*host, nil); err != nil {
 		log.Fatalf("Could not start http server: %v", err)
 	}
@@ -62,7 +64,7 @@ const noImgHTML = `
 <!DOCTYPE HTML>
 <html>
 	<head><title>imgurproxy</title></head>
-	<body><h1>Append an imgur image URL path to the URL.</h1></body>
+	<body><h1>Append an imgur image or gallery URL path to the URL.</h1></body>
 </html>
 `
 
@@ -81,7 +83,7 @@ func trimCache() {
 	}
 }
 
-func imgurHandler(w http.ResponseWriter, r *http.Request) {
+func imgHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Want GET", http.StatusMethodNotAllowed)
 		return
@@ -125,4 +127,45 @@ func imgurHandler(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		trimCache()
 	}()
+}
+
+// TODO(mpl): add url parameter to control the number of images we slurp
+
+func galleryHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Want GET", http.StatusMethodNotAllowed)
+		return
+	}
+	if !strings.HasPrefix(r.URL.Path, *prefix) {
+		http.Error(w, "NOPE", http.StatusNotFound)
+		return
+	}
+	galleryName := strings.TrimPrefix(r.URL.Path, *prefix+"gallery")
+	if galleryName == "" {
+		w.Write([]byte(noImgHTML))
+		return
+	}
+
+	resp, err := http.Get("https://imgur.com/gallery/" + galleryName)
+	if err != nil {
+		http.Error(w, "error fetching gallery", http.StatusInternalServerError)
+		log.Printf("error fetching gallery %v: %v", galleryName, err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "error reading gallery", http.StatusInternalServerError)
+		log.Printf("error reading gallery %v: %v", galleryName, err)
+		return
+	}
+	log.Printf("fetched %v\n", galleryName)
+
+	sc := bufio.NewScanner(bytes.NewReader(body))
+	for sc.Scan() {
+		// TODO(mpl): get each i.imgur.com link, slurp the image (if not in cache)
+		// serve a page with all the images.
+	}
+	if err := scanner.Err(); err != nil {
+	}
 }
