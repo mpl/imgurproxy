@@ -149,7 +149,7 @@ var (
 	imgPattern = `src="//i.imgur.com/`
 	// TODO(mpl): class="zoom" hint is super lame, but it helps only getting the actual images from the gallery. Actually does not work, since some of them have no zoom.
 	//	imgRxp = regexp.MustCompile(`.*`+imgPattern+`(.*?)" class="zoom".*`)
-	// TODO(mpl): will imgur always use jpg ?
+	// TODO(mpl): bleh, not always jpg.
 	imgRxp = regexp.MustCompile(`.*` + imgPattern + `(.*?\.jpg)".*`)
 )
 
