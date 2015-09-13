@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -145,7 +146,7 @@ func imgHandler(w http.ResponseWriter, r *http.Request) {
 // TODO(mpl): add url parameter to control the number of images we slurp
 
 var (
-	imgPattern = "//i.imgur.com/"
+	imgPattern = `src="//i.imgur.com/`
 	// TODO(mpl): class="zoom" hint is super lame, but it helps only getting the actual images from the gallery. Actually does not work, since some of them have no zoom.
 	//	imgRxp = regexp.MustCompile(`.*`+imgPattern+`(.*?)" class="zoom".*`)
 	// TODO(mpl): will imgur always use jpg ?
@@ -184,8 +185,8 @@ func galleryHandler(w http.ResponseWriter, r *http.Request) {
 
 	sc := bufio.NewScanner(bytes.NewReader(body))
 	// TODO(mpl): map gives us dedup, but we want ordered, so back to slice. do better.
-	//	var images []string
-	images := make(map[string]struct{})
+	//	images := make(map[string]struct{})
+	var images []string
 	for sc.Scan() {
 		l := sc.Text()
 		if !strings.Contains(l, imgPattern) {
@@ -204,19 +205,40 @@ func galleryHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		*/
-		//		images = append(images, imgName)
-		images[imgName] = struct{}{}
+		//		images[imgName] = struct{}{}
+		images = append(images, imgName)
 	}
 	if err := sc.Err(); err != nil {
 		http.Error(w, "error parsing gallery", http.StatusInternalServerError)
 		log.Printf("error parsing gallery %v: %v", galleryName, err)
 		return
 	}
+	for k, v := range images {
+		println(fmt.Sprintf("%v", k) + ": " + v)
+	}
+
+	if err := r.ParseForm(); err == nil && len(r.Form) > 0 {
+		if imgIdx := r.Form.Get("i"); imgIdx != "" {
+			println(imgIdx)
+			if idx, err := strconv.Atoi(imgIdx); err == nil {
+				if idx < len(images) {
+					println(images[idx])
+					images = images[idx : idx+1]
+				}
+			}
+		}
+	} else {
+		println(fmt.Sprintf("%v", err))
+		println(len(r.Form))
+	}
+	if len(images) > 1 {
+		images = images[0:1]
+	}
 	d := struct {
 		//		Host string
 		Prefix string
-		//		Images []string
-		Images map[string]struct{}
+		//		Images map[string]struct{}
+		Images []string
 	}{
 		//		Host: *host,
 		Prefix: *prefix,
@@ -244,12 +266,12 @@ var galleryHTML = `
 <body>
 {{ $prefix := .Prefix }}
 {{ if .Images }}
-	{{ range $imgName, $_ := .Images }}
-		<img src="{{$prefix}}{{$imgName}}" alt="{{$imgName}}" height="800" width="600">
+	{{ range $, $imgName := .Images }}
+		<img src="{{$prefix}}{{$imgName}}" alt="{{$imgName}}">
 	{{ end }}
 {{ end }}
 </body>
 </html lang="en">
 `
 
-//	{{ range $_, $imgName := .Images }}
+//		<img src="{{$prefix}}{{$imgName}}" alt="{{$imgName}}" height="800" width="600">
